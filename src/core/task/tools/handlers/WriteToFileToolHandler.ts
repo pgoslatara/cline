@@ -418,16 +418,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					!block.partial, // Pass the partial flag correctly
 				)
 			} catch (error) {
-				// Check if we've already pushed an error for this specific tool call (prevents duplicates during streaming)
-				const callId = block.call_id || ""
-				if (callId && config.taskState.errorPushedForCallIds.has(callId)) {
+				// During streaming (block.partial=true), the diff may fail repeatedly as incomplete content streams in.
+				// Skip all error UI handling for partial blocks to prevent flickering.
+				if (block.partial) {
 					return
 				}
 
-				// Increment mistake counter so tooManyMistakes check can trigger after repeated failures
 				config.taskState.consecutiveMistakeCount++
 
-				// Full original behavior - comprehensive error handling even for partial blocks
 				// Removes any existing diff_error messages to avoid duplicates.
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "diff_error")
 				await config.callbacks.say("diff_error", relPath, undefined, undefined, true)
@@ -459,10 +457,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					config.taskState.toolUseIdMap,
 				)
 
-				// Mark this call as having had its error pushed (prevents duplicates during streaming)
-				if (callId) {
-					config.taskState.errorPushedForCallIds.add(callId)
-				}
 				if (!config.enableParallelToolCalling) {
 					config.taskState.didAlreadyUseTool = true
 				}
